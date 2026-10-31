@@ -15,7 +15,7 @@ Send files and messages straight to another device. No accounts: everyone gets a
 | Lobby + signaling | `src/index.js` → `Lobby` Durable Object (one global instance, hibernating WebSockets) |
 | Names | `src/identity.js` — CSS named colors × animal emoji |
 | Location | `request.cf.city` / `request.cf.country`, shown with a flag emoji |
-| TURN credentials | `GET /api/ice`, generated with the `TURN_KEY_ID` / `TURN_KEY_API_TOKEN` secrets |
+| TURN credentials | Sent over the lobby socket after joining (no public endpoint), generated with the `TURN_KEY_ID` / `TURN_KEY_API_TOKEN` secrets |
 
 Nothing is stored server-side: the lobby only holds who is connected right now.
 

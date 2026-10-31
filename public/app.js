@@ -259,25 +259,34 @@
       case 'signal':
         if (self && typeof msg.from === 'string' && msg.data) getConn(msg.from).signal(msg.data);
         break;
+      case 'ice':
+        onIce(msg);
+        break;
     }
   }
 
   // ---------- WebRTC ----------
 
+  // TURN credentials arrive over the lobby socket ("ice"), never from a URL.
   let ice = null;
   let iceAt = 0;
-  let iceLoading = null;
+  const iceWaiters = [];
+  const ICE_WAIT_MS = 8000;
+
+  function onIce(msg) {
+    if (!Array.isArray(msg.iceServers)) return;
+    ice = msg;
+    iceAt = Date.now();
+    for (const resolve of iceWaiters.splice(0)) resolve(ice.iceServers);
+  }
 
   function getIceServers() {
     if (ice && Date.now() - iceAt < (ice.ttl * 1000) / 2) return Promise.resolve(ice.iceServers);
-    if (!iceLoading) {
-      iceLoading = fetch('/api/ice', { cache: 'no-store' })
-        .then((r) => r.json())
-        .then((data) => { ice = data; iceAt = Date.now(); return data.iceServers; })
-        .catch(() => (ice ? ice.iceServers : [{ urls: 'stun:stun.cloudflare.com:3478' }]))
-        .finally(() => { iceLoading = null; });
-    }
-    return iceLoading;
+    if (ice) lobbySend({ t: 'ice' });
+    return new Promise((resolve) => {
+      iceWaiters.push(resolve);
+      setTimeout(() => resolve(ice ? ice.iceServers : [{ urls: 'stun:stun.cloudflare.com:3478' }]), ICE_WAIT_MS);
+    });
   }
 
   // One peer connection per person, with one ordered data channel. Text frames
@@ -1191,7 +1200,6 @@
   // ---------- Startup ----------
 
   renderInstall();
-  getIceServers();
   connect();
   loadShared();
 

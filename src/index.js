@@ -1,18 +1,14 @@
 import { DurableObject } from 'cloudflare:workers';
 import { pickIdentity, identityKey } from './identity.js';
 
-// TURN credentials live this long; transfers longer than this are unlikely.
-const ICE_TTL = 12 * 60 * 60;
+// TURN credentials live this long. Clients ask for fresh ones (over the
+// lobby socket, at most every ICE_REFRESH_MS) before they run out.
+const ICE_TTL = 4 * 60 * 60;
+const ICE_REFRESH_MS = 10 * 60 * 1000;
 const FALLBACK_ICE = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
 const MAX_MESSAGE = 64 * 1024;
 
-const json = (body, init = {}) =>
-  new Response(JSON.stringify(body), {
-    ...init,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...init.headers },
-  });
-
-// Requests from other sites must not get our TURN credentials or lobby.
+// Other sites must not reach the lobby (scripts can still fake Origin).
 function sameOrigin(request, url) {
   const origin = request.headers.get('Origin');
   if (origin) return origin === url.origin;
@@ -34,10 +30,8 @@ export default {
       return stub.fetch(new Request(request.url, { headers }));
     }
 
-    if (url.pathname === '/api/ice') {
-      if (!sameOrigin(request, url)) return new Response('Forbidden', { status: 403 });
-      return json(await iceServers(env));
-    }
+    // TURN credentials are only handed out inside the lobby connection.
+    if (url.pathname.startsWith('/api/')) return new Response('Not found', { status: 404 });
 
     // Share target before the service worker is running: just open the app.
     if (url.pathname === '/share' && request.method === 'POST') {
@@ -55,6 +49,7 @@ async function iceServers(env) {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.TURN_KEY_API_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ttl: ICE_TTL }),
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`TURN API ${res.status}`);
     const data = await res.json();
@@ -147,10 +142,16 @@ export class Lobby extends DurableObject {
         peers: this.peers(ws).map(([, p]) => publicPeer(p)),
       }));
       this.broadcast({ t: 'join', peer: publicPeer(peer) }, ws);
+      await this.sendIce(ws);
       return;
     }
 
     if (!me.id) return;
+
+    if (msg.t === 'ice') {
+      if (Date.now() - (me.iceAt || 0) >= ICE_REFRESH_MS) await this.sendIce(ws);
+      return;
+    }
 
     if (msg.t === 'signal' && typeof msg.to === 'string') {
       const target = this.peers(ws).find(([, p]) => p.id === msg.to);
@@ -166,6 +167,14 @@ export class Lobby extends DurableObject {
       ws.send(JSON.stringify({ t: 'you', self: publicPeer(peer) }));
       this.broadcast({ t: 'join', peer: publicPeer(peer) }, ws);
     }
+  }
+
+  async sendIce(ws) {
+    const current = ws.deserializeAttachment();
+    if (!current || !current.id) return;
+    ws.serializeAttachment({ ...current, iceAt: Date.now() });
+    const ice = await iceServers(this.env);
+    try { ws.send(JSON.stringify({ t: 'ice', ...ice })); } catch {}
   }
 
   async webSocketClose(ws, code) {
