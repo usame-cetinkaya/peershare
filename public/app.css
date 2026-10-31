@@ -314,6 +314,8 @@ textarea:focus { border-color: var(--accent); }
 
 .incoming-lead { margin: 14px 0 10px; font-size: 16px; }
 #incoming-dialog .row { margin-top: 14px; }
+.incoming-code { margin: 12px 0 0; font-size: 13px; }
+.incoming-code:empty { display: none; }
 
 /* ---------- Activity ---------- */
 

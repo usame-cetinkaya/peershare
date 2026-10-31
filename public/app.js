@@ -324,6 +324,7 @@
       dc.onopen = () => {
         this.resolveOpen();
         this.detectRoute();
+        this.makeSafetyCode();
         // Re-check when ICE moves to a new path (e.g. relay -> direct after trust()).
         const ice = pc.sctp && pc.sctp.transport && pc.sctp.transport.iceTransport;
         if (ice && 'onselectedcandidatepairchange' in ice) ice.onselectedcandidatepairchange = () => this.detectRoute();
@@ -429,6 +430,22 @@
         dc.addEventListener('bufferedamountlow', done);
         dc.addEventListener('close', done);
       });
+    }
+
+    // Both sides derive the same 6 digits from the two DTLS certificate
+    // fingerprints. If someone in the middle (even the signaling server)
+    // swapped keys, the two people would see different codes.
+    async makeSafetyCode() {
+      try {
+        const fp = (desc) => ((desc && desc.sdp.match(/a=fingerprint:\S+ (\S+)/)) || [])[1];
+        const pair = [fp(this.pc.localDescription), fp(this.pc.remoteDescription)];
+        if (!pair[0] || !pair[1]) return;
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pair.sort().join('|')));
+        const digits = String(new DataView(digest).getUint32(0) % 1e6).padStart(6, '0');
+        this.code = `${digits.slice(0, 3)} ${digits.slice(3)}`;
+        for (const it of items) if (it.conn === this && isActive(it)) renderItem(it);
+        if (asking && asking.conn === this) $('incoming-code').textContent = codeText(this.code);
+      } catch {}
     }
 
     async detectRoute() {
@@ -706,6 +723,8 @@
 
   // ---------- Accept / decline ----------
 
+  const codeText = (code) => `Safety code ${code}. To be sure who this is, check they see the same code.`;
+
   const askQueue = [];
   let asking = null;
   const incomingDialog = $('incoming-dialog');
@@ -721,6 +740,7 @@
     paintPlace($('incoming-place'), it.peer);
     const n = it.files.length;
     $('incoming-lead').textContent = `wants to send you ${n === 1 ? 'a file' : `${n} files`} (${formatBytes(it.total)}).`;
+    $('incoming-code').textContent = it.conn.code ? codeText(it.conn.code) : '';
     const shown = it.files.slice(0, 5).map((f) =>
       h('li', {}, h('span', { class: 'fname' }, f.name), h('span', { class: 'fsize' }, formatBytes(f.size))));
     if (n > 5) shown.push(h('li', { class: 'muted' }, `and ${n - 5} more`));
@@ -917,8 +937,10 @@
 
     const route = it.conn && it.conn.route;
     if (route && it.kind === 'files' && isActive(it)) it.route = route;
+    if (it.conn && it.conn.code) it.code = it.conn.code;
     const notes = [];
     if (it.note) notes.push(it.note);
+    if (it.code) notes.push(`Safety code ${it.code}`);
     if (it.status === 'waiting') notes.push(`Waiting for ${it.peer.name} to accept`);
     if (it.route && it.kind === 'files') notes.push(it.route === 'relay' ? 'Relayed through Cloudflare (still encrypted)' : 'Direct connection');
 
