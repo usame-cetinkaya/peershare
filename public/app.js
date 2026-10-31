@@ -119,6 +119,24 @@
     el.append(placeText(p));
   }
 
+  // Shrinks a one-line element's font until its text fits (ellipsis below min).
+  function fitText(el, max, min) {
+    el.style.fontSize = `${max}px`;
+    if (!el.clientWidth || el.scrollWidth <= el.clientWidth) return;
+    let size = Math.max(min, Math.floor((max * el.clientWidth) / el.scrollWidth * 2) / 2);
+    el.style.fontSize = `${size}px`;
+    while (size > min && el.scrollWidth > el.clientWidth) {
+      size -= 0.5;
+      el.style.fontSize = `${size}px`;
+    }
+  }
+
+  function fitNames() {
+    fitText($('me-name'), 21, 11);
+    for (const el of document.querySelectorAll('.peer-name')) fitText(el, 16, 11);
+  }
+  window.addEventListener('resize', fitNames);
+
   let toastTimer = 0;
   function toast(text) {
     const el = $('toast');
@@ -678,6 +696,7 @@
     if (!self) return;
     paintAvatar($('me-avatar'), self);
     $('me-name').textContent = self.name;
+    fitText($('me-name'), 21, 11);
     paintPlace($('me-place'), self);
   }
 
@@ -687,6 +706,7 @@
     $('empty').hidden = !self || list.length > 0;
     $('peer-hint').hidden = !list.length;
     $('peer-count').textContent = list.length ? `${list.length}` : '';
+    for (const el of $('peer-list').querySelectorAll('.peer-name')) fitText(el, 16, 11);
   }
 
   function peerButton(p, isNew) {
