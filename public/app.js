@@ -71,7 +71,7 @@
 
   const placeText = (p) => [p.city, countryName(p.country)].filter(Boolean).join(', ') || 'Somewhere on Earth';
 
-  const timeText = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const timeText = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
   // ---------- DOM helpers ----------
 

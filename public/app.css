@@ -282,7 +282,7 @@ dialog.sheet[open] { animation: rise 0.2s ease-out; }
 .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .drop svg { width: 26px; height: 26px; flex: none; }
 
-.picked { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 32vh; overflow: auto; }
+.picked { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; max-height: 32vh; overflow: auto; }
 .picked:empty { display: none; }
 .picked li {
   display: flex;
@@ -323,8 +323,9 @@ textarea:focus { border-color: var(--accent); }
 .activity[hidden] { display: none; }
 .awake-hint { margin: -2px 2px 10px; }
 .keep-awake { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
-.activity-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.item { padding: 12px; display: grid; gap: 10px; }
+.activity-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+/* minmax(0, 1fr): long file names get cut with … instead of widening the page. */
+.item { padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .item-head { display: flex; align-items: center; gap: 10px; font-size: 14px; }
 .item-head .who { flex: 1; min-width: 0; }
 .item-head .who b { font-weight: 700; }
@@ -354,7 +355,7 @@ textarea:focus { border-color: var(--accent); }
 }
 .message a { color: var(--accent); }
 
-.files { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.files { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .file {
   display: flex;
   align-items: center;
