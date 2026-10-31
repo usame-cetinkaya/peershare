@@ -666,6 +666,13 @@
   function onChunk(conn, buf) {
     const cur = conn.incoming;
     if (!cur || cur.it.status !== 'receiving') return;
+    // A sender must not push more than it announced (and you accepted).
+    const f = cur.it.files[cur.index];
+    if (cur.received + buf.byteLength > f.size) {
+      try { conn.send({ t: 'cancel', id: cur.it.xid }); } catch {}
+      finishItem(cur.it, 'failed', `${f.name} was bigger than announced`);
+      return;
+    }
     cur.chunks.push(buf);
     cur.received += buf.byteLength;
     cur.it.done += buf.byteLength;
