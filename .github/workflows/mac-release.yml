@@ -1,0 +1,29 @@
+# Pushing a tag like mac-1.0.0 publishes PeerShare for Mac as a DMG.
+name: Mac release
+on:
+  push:
+    tags: ['mac-*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: VERSION="${GITHUB_REF_NAME#mac-}" mac/build.sh
+      - name: Package
+        run: |
+          V="${GITHUB_REF_NAME#mac-}"
+          mkdir dmg
+          cp -R mac/build/PeerShare.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname PeerShare -srcfolder dmg -ov -format UDZO "PeerShare-$V-arm64.dmg"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${GITHUB_REF_NAME#mac-}"
+          gh release create "$GITHUB_REF_NAME" "PeerShare-$V-arm64.dmg" \
+            --title "PeerShare for Mac $V" \
+            --notes "Apple Silicon, macOS 13 or later. Drag PeerShare to Applications. It isn't notarized, so the first time: open it, then System Settings → Privacy & Security → Open Anyway. After that, PeerShare is in the share menu."

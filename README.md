@@ -7,6 +7,23 @@ Send files and messages straight to another device. No accounts: everyone gets a
 - **One-to-one.** Pick a person, choose files and/or type a message or link. Files need the receiver to accept; messages show up right away.
 - **Installable.** PWA with an install card (iOS steps / Android & desktop prompt), offline shell, Android share target for files and links.
 
+## Mac app
+
+`mac/` holds a small native app (Apple Silicon, macOS 13+) that shows the web app in a window and adds **PeerShare** to the system share menu, which websites can't do on a Mac.
+
+- The share extension (`mac/Sources/Share`) collects the shared files, links or text and opens a `peershare://` link; the app hands them to the page, which shows "Click someone to send …".
+- Shared files stay on disk: the page reads them from the app in 1 MB blocks while sending, so size doesn't matter. Things without a file (an image from an app) are copied first.
+- Dropping files on the Dock icon works too. Received files go to Downloads.
+- The app keeps WebKit and App Nap from slowing it down in the background, so it can still answer offers, and keeps the Mac awake during transfers.
+
+```sh
+mac/build.sh                 # mac/build/PeerShare.app (Command Line Tools are enough)
+INSTALL=1 mac/build.sh       # also copies it to /Applications
+mac/make-icon.sh             # re-renders Resources/AppIcon.icns (needs Google Chrome)
+```
+
+Debug builds (`DEBUG=1`) accept `PEERSHARE_URL` (e.g. the dev server), `PEERSHARE_INJECT` (a script run after each page load) and `PEERSHARE_LOG` (lines the page posts with `{t: 'log'}`; `snapshot:<path>` saves a PNG). Pushing a tag like `mac-1.0.0` publishes a DMG on GitHub. It's ad-hoc signed, not notarized.
+
 ## How it works
 
 | Piece | Where |

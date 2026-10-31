@@ -13,6 +13,8 @@
   const SECRET_KEY = 'peershare.secret.v1';
   const INSTALL_DISMISS_KEY = 'peershare.installDismissed';
   const SHARE_CACHE = 'peershare-share';
+  // Set when running inside the PeerShare Mac app.
+  const mac = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.peershare;
 
   const $ = (id) => document.getElementById(id);
   const store = {
@@ -532,7 +534,7 @@
         size: f.size,
         type: f.type,
         file: f,
-        thumb: f.type.startsWith('image/') && f.size < 30e6 ? URL.createObjectURL(f) : null,
+        thumb: f instanceof Blob && f.type.startsWith('image/') && f.size < 30e6 ? URL.createObjectURL(f) : null,
       })),
       total: files.reduce((sum, f) => sum + f.size, 0),
     });
@@ -1134,7 +1136,7 @@
     if (files.length) sendFiles(peer, files);
   });
 
-  // ---------- Shared into the app (Android share target) ----------
+  // ---------- Shared into the app (Android share target, Mac share menu) ----------
 
   function setShare(share) {
     pendingShare = share;
@@ -1143,7 +1145,7 @@
     let what = names.slice(0, 2).join(', ');
     if (names.length > 2) what += ` and ${names.length - 2} more`;
     if (!names.length) what = share.text.length > 40 ? `${share.text.slice(0, 40)}…` : share.text;
-    $('share-banner-text').textContent = `Tap someone to send ${what}`;
+    $('share-banner-text').textContent = `${matchMedia('(pointer: fine)').matches ? 'Click' : 'Tap'} someone to send ${what}`;
     $('share-banner').hidden = false;
   }
 
@@ -1194,6 +1196,7 @@
   let wakeLock = null;
   let wakeLockPending = false;
   let wakeLockFailed = false;
+  let macBusy = false;
 
   // Fallback where the Wake Lock API is missing or failed, and on iOS, where
   // home-screen apps before iOS 18.4 got a lock that did nothing: a tiny muted
@@ -1215,7 +1218,12 @@
   async function updateWakeLock() {
     const busy = keepsAwake();
     const visible = document.visibilityState === 'visible';
-    $('awake-hint').hidden = !busy;
+    // The Mac app keeps the Mac awake itself, and keeps going in the background.
+    $('awake-hint').hidden = !busy || !!mac;
+    if (mac && busy !== macBusy) {
+      macBusy = busy;
+      mac.postMessage({ t: 'busy', on: busy }).catch(() => {});
+    }
     const hasApi = 'wakeLock' in navigator;
     playAwakeVideo(busy && visible && (!hasApi || wakeLockFailed || isIos()));
 
@@ -1322,6 +1330,33 @@
     store.set(INSTALL_DISMISS_KEY, Date.now());
     installEl.hidden = true;
   });
+
+  // ---------- Mac app ----------
+
+  // Files from the Mac share menu stay on disk; the app hands them over in
+  // blocks as they're sent, so even huge files never sit in memory.
+  if (mac) {
+    const ask = (msg) => mac.postMessage(msg);
+    const decode = (b64) => Uint8Array.fromBase64
+      ? Uint8Array.fromBase64(b64)
+      : Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const macFile = (f) => ({
+      name: String(f.name),
+      size: Number(f.size),
+      type: String(f.type || ''),
+      slice: (start, end) => ({
+        arrayBuffer: async () => decode(await ask({ t: 'read', id: f.id, start, end: Math.min(end, f.size) })).buffer,
+      }),
+    });
+    const receive = (share) => {
+      if (!share) return;
+      const files = (share.files || []).map(macFile);
+      const text = String(share.text || '').slice(0, MAX_TEXT);
+      if (files.length || text) setShare({ files, text });
+    };
+    window.peershareMac = { share: receive };
+    ask({ t: 'ready' }).then(receive).catch(() => {});
+  }
 
   // ---------- Startup ----------
 
