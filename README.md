@@ -27,7 +27,7 @@ Nothing is stored server-side: the lobby only holds who is connected right now.
 | Free-riding on the TURN relay | No public credential endpoint; 4-hour credentials come over the lobby socket, refreshable at most every 10 minutes. |
 | Flooding the lobby / burning the free-plan quota | Per-IP caps (10 sockets, 30 connects a minute, IP kept only as a salted hash), 1000 sockets total, a per-socket token bucket (burst 300, 20/s), renames once per 2 s. |
 | Offer and message spam | Up to 3 waiting offers per person, 30 offers or messages a minute per person, 10 queued Accept dialogs at most. Over the limit, the sender is told to try again in a minute. |
-| Files that run code (HTML, SVG…) | Received files keep their type only if it is a raster image, video, audio, PDF or plain text; everything else is `application/octet-stream`. |
+| Files that run code (HTML, SVG…) | Received files keep their type only if no browser renders it as an active page (raster images, video, audio, PDF, plain text/CSV/calendar, JSON, archives, office documents); everything else is `application/octet-stream`. |
 | XSS, clickjacking | All peer content is inserted as text; strict CSP without inline script or style, `frame-ancestors 'none'`, plus nosniff, no-referrer, COOP, HSTS (`public/_headers`). |
 | A sender pushing more than announced | The receiver cancels the moment a file exceeds its announced size. |
 | Other sites posting to the share target | The service worker drops `/share` posts with another site's referrer; the banner names the shared files. |

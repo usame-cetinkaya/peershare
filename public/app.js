@@ -592,7 +592,15 @@
   // The sender picks the file type. A blob URL runs in this app's origin, so a
   // file the browser might render (HTML, SVG, XML…) is kept as a plain download.
   const SAFE_IMAGE = /^image\/(png|jpeg|gif|webp|avif|bmp|heic|heif)$/;
-  const SAFE_TYPE = /^(video|audio)\/[\w.+-]+$|^application\/pdf$|^text\/plain$/;
+  // Types no browser renders as an active page: media, PDF, plain-ish text,
+  // archives and office documents (so phones still offer the right apps).
+  const SAFE_TYPE = new RegExp([
+    '^(video|audio)/[\\w.+-]+$',
+    '^text/(plain|csv|markdown|calendar|vcard)$',
+    '^application/(pdf|json|zip|x-zip-compressed|gzip|x-7z-compressed|vnd\\.rar|epub\\+zip)$',
+    '^application/(msword|vnd\\.ms-excel|vnd\\.ms-powerpoint)$',
+    '^application/vnd\\.(openxmlformats-officedocument|oasis\\.opendocument)\\.[\\w.+-]+$',
+  ].join('|'));
   const safeType = (type) => (SAFE_IMAGE.test(type) || SAFE_TYPE.test(type) ? type : 'application/octet-stream');
 
   const safeName = (name) => String(name || '').replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 255) || 'file';
