@@ -282,9 +282,14 @@
 
   // One peer connection per person, with one ordered data channel. Text frames
   // are control messages; binary frames belong to the file being received.
+  //
+  // Privacy: a connection someone else starts is relay-only, so they only ever
+  // see Cloudflare's addresses, never this device's IP. It switches to direct
+  // (trust()) once this side sends them something or accepts their files.
   class Conn {
-    constructor(peerId) {
+    constructor(peerId, trusted) {
       this.id = peerId;
+      this.trusted = trusted;
       this.polite = self.id < peerId;
       this.makingOffer = false;
       this.ignoreOffer = false;
@@ -301,12 +306,19 @@
 
     setup(iceServers) {
       if (this.closed) return;
-      const pc = (this.pc = new RTCPeerConnection({ iceServers }));
+      this.config = { iceServers, iceTransportPolicy: this.trusted ? 'all' : 'relay' };
+      const pc = (this.pc = new RTCPeerConnection(this.config));
       // Negotiated with a fixed id: both sides create it, so there is never a second channel.
       const dc = (this.dc = pc.createDataChannel('peershare', { negotiated: true, id: 0, ordered: true }));
       dc.binaryType = 'arraybuffer';
       dc.bufferedAmountLowThreshold = LOW_WATER;
-      dc.onopen = () => { this.resolveOpen(); this.detectRoute(); };
+      dc.onopen = () => {
+        this.resolveOpen();
+        this.detectRoute();
+        // Re-check when ICE moves to a new path (e.g. relay -> direct after trust()).
+        const ice = pc.sctp && pc.sctp.transport && pc.sctp.transport.iceTransport;
+        if (ice && 'onselectedcandidatepairchange' in ice) ice.onselectedcandidatepairchange = () => this.detectRoute();
+      };
       dc.onclose = () => this.close('closed');
       dc.onmessage = (e) => onChannelMessage(this, e.data);
 
@@ -323,10 +335,27 @@
       };
       pc.onicecandidate = ({ candidate }) => { if (candidate) sendSignal(this.id, { candidate }); };
       pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState !== 'failed') return;
+        const state = pc.iceConnectionState;
+        // The path can change after trust() restarts ICE.
+        if ((state === 'connected' || state === 'completed') && this.isOpen) this.detectRoute();
+        if (state !== 'failed') return;
         if (this.restarted) this.close('failed');
         else { this.restarted = true; pc.restartIce(); }
       };
+    }
+
+    // Allow a direct path: gather this device's own candidates and renegotiate.
+    trust() {
+      if (this.trusted || this.closed) return;
+      this.trusted = true;
+      if (!this.pc) return; // setup() has not run yet and will use 'all'
+      this.config = { ...this.config, iceTransportPolicy: 'all' };
+      try {
+        this.pc.setConfiguration(this.config);
+        this.pc.restartIce();
+      } catch (err) {
+        console.warn('Could not switch to direct', err);
+      }
     }
 
     signal(data) {
@@ -423,11 +452,14 @@
     }
   }
 
-  function getConn(peerId) {
+  // trusted: this side is reaching out, so a direct connection is fine.
+  function getConn(peerId, trusted = false) {
     let conn = conns.get(peerId);
     if (!conn || conn.closed) {
-      conn = new Conn(peerId);
+      conn = new Conn(peerId, trusted);
       conns.set(peerId, conn);
+    } else if (trusted) {
+      conn.trust();
     }
     return conn;
   }
@@ -442,7 +474,7 @@
   }
 
   async function connectFor(it) {
-    const conn = getConn(it.peer.id);
+    const conn = getConn(it.peer.id, true);
     it.conn = conn;
     try {
       await conn.open();
@@ -499,6 +531,7 @@
     if (!isActive(it)) return;
     it.started = performance.now();
     setItemStatus(it, 'sending');
+    conn.detectRoute();
     const size = conn.chunkSize;
     for (let i = 0; i < it.files.length; i++) {
       const f = it.files[i];
@@ -576,7 +609,10 @@
         break;
       case 'begin':
         if (it && it.status === 'receiving' && it.files[msg.index]) {
-          if (!it.started) it.started = performance.now();
+          if (!it.started) {
+            it.started = performance.now();
+            conn.detectRoute();
+          }
           conn.incoming = { it, index: msg.index, parts: [], chunks: [], received: 0 };
         } else {
           conn.incoming = null;
@@ -653,8 +689,12 @@
   function answerItem(it, accept) {
     if (it.status !== 'asking') return;
     try { it.conn.send({ t: 'answer', id: it.xid, accept }); } catch {}
-    if (accept) setItemStatus(it, 'receiving');
-    else finishItem(it, 'declined');
+    if (accept) {
+      it.conn.trust();
+      setItemStatus(it, 'receiving');
+    } else {
+      finishItem(it, 'declined');
+    }
   }
 
   function closeAsk() {
