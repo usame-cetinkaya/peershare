@@ -1,0 +1,12 @@
+{
+  "name": "peershare",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --port 3000",
+    "deploy": "wrangler deploy",
+    "icons": "sh scripts/make-icons.sh"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.2"
+  }
+}

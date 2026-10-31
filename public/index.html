@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PeerShare</title>
+  <meta name="description" content="Send files and messages straight to another device. No accounts.">
+  <meta name="theme-color" content="#0f0f14" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f5fa" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PeerShare">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main id="home">
+    <header>
+      <h1><img class="logo" src="/icons/icon.svg" alt="" width="32" height="32"> PeerShare</h1>
+      <span class="status" id="status" data-state="connecting">Connecting…</span>
+    </header>
+
+    <section class="me card" aria-label="You">
+      <div class="avatar avatar-lg" id="me-avatar" aria-hidden="true"></div>
+      <div class="me-text">
+        <div class="eyebrow muted">You are</div>
+        <div class="me-name" id="me-name">…</div>
+        <div class="place muted" id="me-place"></div>
+      </div>
+      <button type="button" class="icon-btn" id="shuffle" title="Get a new name" aria-label="Get a new name" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+      </button>
+    </section>
+
+    <section id="share-banner" class="banner" hidden>
+      <span id="share-banner-text"></span>
+      <button type="button" class="link" id="share-banner-clear">Cancel</button>
+    </section>
+
+    <section class="peers">
+      <div class="section-head">
+        <h2>Online now</h2>
+        <span class="muted count" id="peer-count"></span>
+      </div>
+      <ul id="peer-list" class="peer-list"></ul>
+      <div id="empty" class="empty card" hidden>
+        <div class="empty-art" aria-hidden="true">👋</div>
+        <p>No one else is here yet.</p>
+        <p class="muted">Open PeerShare on another device and it shows up here.</p>
+        <button type="button" class="secondary" id="copy-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <span>Copy link</span>
+        </button>
+      </div>
+      <p class="hint muted" id="peer-hint" hidden>Tap someone to send files or a message. On a computer you can also drop files on them.</p>
+    </section>
+
+    <section id="install" class="install card" hidden>
+      <button type="button" class="install-close" id="install-close" aria-label="Not now">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="install-head">
+        <img class="logo-lg" src="/icons/icon.svg" alt="" width="48" height="48">
+        <div>
+          <div class="install-title" id="install-title">Install PeerShare</div>
+          <div class="install-sub muted">Opens like an app, one tap from your home screen.</div>
+        </div>
+      </div>
+      <ol class="install-steps" id="install-steps" hidden>
+        <li><span class="num">1</span><span class="step">Tap the Share button in Safari</span>
+          <svg class="accent" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg></li>
+        <li><span class="num">2</span><span class="step">Choose “Add to Home Screen”</span>
+          <svg class="muted" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></svg></li>
+        <li><span class="num">3</span><span class="step">Tap “Add”</span></li>
+      </ol>
+      <button type="button" class="install-btn" id="install-btn" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Install
+      </button>
+    </section>
+
+    <section id="activity-section" class="activity" hidden>
+      <div class="section-head">
+        <h2>Activity</h2>
+        <button type="button" class="link" id="clear-activity">Clear</button>
+      </div>
+      <ul id="activity" class="activity-list"></ul>
+    </section>
+
+    <p class="note muted">Files and messages go straight from device to device and are encrypted on the way. Nothing is stored.</p>
+  </main>
+
+  <dialog id="send-dialog" class="sheet" aria-labelledby="send-title">
+    <form method="dialog" id="send-form" autocomplete="off">
+      <div class="sheet-head">
+        <div class="avatar" id="send-avatar" aria-hidden="true"></div>
+        <div class="sheet-title">
+          <div id="send-title" class="sheet-name"></div>
+          <div id="send-place" class="place muted"></div>
+        </div>
+        <button type="button" class="icon-btn" id="send-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+
+      <label class="drop" id="drop">
+        <input type="file" id="file-input" multiple>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 18v-6M9 15l3-3 3 3"/></svg>
+        <span id="drop-label">Choose files</span>
+      </label>
+      <ul id="picked" class="picked"></ul>
+
+      <label for="send-text" class="sr-only">Message or link</label>
+      <textarea id="send-text" rows="3" placeholder="Message or link, e.g. a meeting link" enterkeyhint="send"></textarea>
+
+      <button type="submit" class="primary" id="send-btn" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+        <span id="send-btn-label">Send</span>
+      </button>
+    </form>
+  </dialog>
+
+  <dialog id="incoming-dialog" class="sheet" aria-labelledby="incoming-title">
+    <div class="sheet-head">
+      <div class="avatar" id="incoming-avatar" aria-hidden="true"></div>
+      <div class="sheet-title">
+        <div id="incoming-title" class="sheet-name"></div>
+        <div id="incoming-place" class="place muted"></div>
+      </div>
+    </div>
+    <p class="incoming-lead" id="incoming-lead"></p>
+    <ul id="incoming-files" class="picked"></ul>
+    <div class="row">
+      <button type="button" class="secondary" id="decline">Decline</button>
+      <button type="button" class="primary" id="accept">Accept</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
