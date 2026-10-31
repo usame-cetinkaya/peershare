@@ -8,7 +8,16 @@ const ICE_REFRESH_MS = 10 * 60 * 1000;
 const FALLBACK_ICE = [{ urls: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'] }];
 const MAX_MESSAGE = 64 * 1024;
 
-// Other sites must not reach the lobby (scripts can still fake Origin).
+// Abuse limits. One global lobby sees every socket, so these are exact.
+const MAX_SOCKETS = 1000; // whole lobby
+const MAX_SOCKETS_PER_IP = 10; // a household or office shares one address
+const MAX_CONNECTS_PER_IP_PER_MIN = 30; // reconnect churn
+const BUCKET_SIZE = 60; // messages in a burst (a WebRTC setup sends ~20)
+const BUCKET_REFILL_PER_SEC = 5;
+const SHUFFLE_EVERY_MS = 2000;
+
+// Other sites must not reach the lobby. Scripts can still fake Origin, which
+// is why the lobby also rate-limits.
 function sameOrigin(request, url) {
   const origin = request.headers.get('Origin');
   if (origin) return origin === url.origin;
@@ -24,8 +33,10 @@ export default {
       if (!sameOrigin(request, url)) return new Response('Forbidden', { status: 403 });
       const cf = request.cf || {};
       const headers = new Headers(request.headers);
-      headers.set('X-City', cf.city || '');
-      headers.set('X-Country', cf.country || '');
+      // Header values must be ASCII; city names often aren't ("Adapazarı").
+      headers.set('X-City', encodeURIComponent(cf.city || ''));
+      headers.set('X-Country', encodeURIComponent(cf.country || ''));
+      headers.set('X-Client-IP', request.headers.get('CF-Connecting-IP') || '');
       const stub = env.LOBBY.get(env.LOBBY.idFromName('global'));
       return stub.fetch(new Request(request.url, { headers }));
     }
@@ -78,17 +89,59 @@ export class Lobby extends DurableObject {
     super(ctx, env);
     // Keep-alive pings are answered without waking the object.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+    // In-memory rate state; it resets if the object hibernates, which is fine.
+    this.buckets = new WeakMap();
+    this.connects = new Map(); // ip hash -> recent connect times
+  }
+
+  // Sockets remember a salted hash of the client IP, never the IP itself.
+  async ipHash(ip) {
+    if (!this.salt) {
+      this.salt = await this.ctx.storage.get('ipSalt');
+      if (!this.salt) {
+        this.salt = crypto.randomUUID();
+        await this.ctx.storage.put('ipSalt', this.salt);
+      }
+    }
+    return (await sha256hex(`${this.salt}:${ip}`)).slice(0, 16);
   }
 
   async fetch(request) {
+    const ip = await this.ipHash(request.headers.get('X-Client-IP') || 'unknown');
+    const sockets = this.ctx.getWebSockets();
+    if (sockets.length >= MAX_SOCKETS) return new Response('Lobby is full', { status: 503 });
+    if (sockets.filter((ws) => (ws.deserializeAttachment() || {}).ip === ip).length >= MAX_SOCKETS_PER_IP) {
+      return new Response('Too many connections', { status: 429 });
+    }
+    const now = Date.now();
+    const recent = (this.connects.get(ip) || []).filter((t) => now - t < 60000);
+    if (recent.length >= MAX_CONNECTS_PER_IP_PER_MIN) return new Response('Slow down', { status: 429 });
+    recent.push(now);
+    this.connects.set(ip, recent);
+    if (this.connects.size > 5000) this.connects.clear();
+
+    const decode = (v) => { try { return decodeURIComponent(v || ''); } catch { return ''; } };
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({
       id: null,
-      city: request.headers.get('X-City') || '',
-      country: request.headers.get('X-Country') || '',
+      ip,
+      city: decode(request.headers.get('X-City')).slice(0, 100),
+      country: decode(request.headers.get('X-Country')).slice(0, 2),
     });
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  // Token bucket per socket; false means this message is over the limit.
+  allow(ws) {
+    const now = Date.now();
+    const b = this.buckets.get(ws) || { tokens: BUCKET_SIZE, at: now, shuffleAt: 0 };
+    b.tokens = Math.min(BUCKET_SIZE, b.tokens + ((now - b.at) / 1000) * BUCKET_REFILL_PER_SEC);
+    b.at = now;
+    this.buckets.set(ws, b);
+    if (b.tokens < 1) return false;
+    b.tokens -= 1;
+    return true;
   }
 
   // Sockets that have said hello, with their peer data.
@@ -111,6 +164,11 @@ export class Lobby extends DurableObject {
 
   async webSocketMessage(ws, raw) {
     if (typeof raw !== 'string' || raw.length > MAX_MESSAGE) return;
+    if (!this.allow(ws)) {
+      this.leave(ws);
+      try { ws.close(1008, 'Too many messages'); } catch {}
+      return;
+    }
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const me = ws.deserializeAttachment();
@@ -161,6 +219,10 @@ export class Lobby extends DurableObject {
     }
 
     if (msg.t === 'shuffle') {
+      // Every rename is broadcast to everyone, so it gets its own, slower limit.
+      const b = this.buckets.get(ws);
+      if (b && Date.now() - b.shuffleAt < SHUFFLE_EVERY_MS) return;
+      if (b) b.shuffleAt = Date.now();
       const taken = new Set(this.peers(ws).map(([, p]) => identityKey(p.color, p.animal)));
       const peer = { ...me, ...pickIdentity(null, null, taken, identityKey(me.color, me.animal)) };
       ws.serializeAttachment(peer);
