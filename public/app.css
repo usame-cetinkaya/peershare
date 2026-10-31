@@ -131,7 +131,8 @@ h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; text-
 }
 .me-text { flex: 1; min-width: 0; }
 .eyebrow { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-.me-name { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Names wrap instead of truncating: "Medium Aquamarine Crocodile" must fit on a phone. */
+.me-name { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; overflow-wrap: anywhere; text-wrap: balance; margin: 1px 0 2px; }
 .place { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .place .flag { margin-right: 6px; }
 
@@ -188,7 +189,7 @@ h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; text-
 .peer:active { transform: scale(0.99); }
 .peer.dragover { border-color: var(--accent); background: var(--accent-soft); }
 .peer-text { flex: 1; min-width: 0; }
-.peer-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peer-name { font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; text-wrap: balance; }
 .peer-go { flex: none; width: 20px; height: 20px; color: var(--muted); }
 .peer-new { animation: pop 0.35s ease-out; }
 @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
