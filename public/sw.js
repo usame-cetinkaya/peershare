@@ -1,11 +1,12 @@
 // Network first (so new deploys show up right away), cache as offline fallback.
-const CACHE = 'peershare-v2';
+const CACHE = 'peershare-v3';
 const SHARE_CACHE = 'peershare-share';
 const SHELL = [
   '/',
   '/app.css',
   '/app.js',
   '/manifest.webmanifest',
+  '/keep-awake.mp4',
   '/icons/icon.svg',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

@@ -496,6 +496,7 @@
     const it = { xid: randomHex(8), at: Date.now(), done: 0, sent: 0, total: 0, ...fields };
     items.unshift(it);
     renderItem(it);
+    updateWakeLock();
     return it;
   }
 
@@ -1185,17 +1186,62 @@
     if (navigator.vibrate) navigator.vibrate(150);
   }
 
+  // Keep the screen on while a transfer is under way, including while it
+  // connects or waits for the other person to accept: a phone that goes to
+  // sleep puts the app in the background, which stalls the transfer.
+  const AWAKE = new Set(['connecting', 'waiting', 'sending', 'receiving']);
+  const keepsAwake = () => items.some((it) => AWAKE.has(it.status));
   let wakeLock = null;
+  let wakeLockPending = false;
+  let wakeLockFailed = false;
+
+  // Fallback where the Wake Lock API is missing or failed, and on iOS, where
+  // home-screen apps before iOS 18.4 got a lock that did nothing: a tiny muted
+  // video playing on a loop keeps the screen on.
+  let awakeVideo = null;
+  function playAwakeVideo(on) {
+    if (on) {
+      if (!awakeVideo) {
+        awakeVideo = h('video', { class: 'keep-awake', src: '/keep-awake.mp4', muted: true, playsinline: true, loop: true, 'aria-hidden': 'true' });
+        awakeVideo.muted = true;
+        document.body.append(awakeVideo);
+      }
+      awakeVideo.play().catch(() => {});
+    } else if (awakeVideo && !awakeVideo.paused) {
+      awakeVideo.pause();
+    }
+  }
+
   async function updateWakeLock() {
-    const busy = items.some((it) => it.status === 'sending' || it.status === 'receiving');
-    if (busy && !wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+    const busy = keepsAwake();
+    const visible = document.visibilityState === 'visible';
+    $('awake-hint').hidden = !busy;
+    const hasApi = 'wakeLock' in navigator;
+    playAwakeVideo(busy && visible && (!hasApi || wakeLockFailed || isIos()));
+
+    if (busy && visible && hasApi && !wakeLock && !wakeLockPending) {
+      wakeLockPending = true;
       try {
-        wakeLock = await navigator.wakeLock.request('screen');
-        wakeLock.addEventListener('release', () => { wakeLock = null; });
-      } catch {}
+        const lock = await navigator.wakeLock.request('screen');
+        wakeLock = lock;
+        lock.addEventListener('release', () => {
+          if (wakeLock !== lock) return;
+          wakeLock = null;
+          // Released by the system (not by us): take it again if still needed.
+          if (keepsAwake() && document.visibilityState === 'visible') setTimeout(updateWakeLock, 1000);
+        });
+      } catch {
+        wakeLockFailed = true;
+        playAwakeVideo(keepsAwake() && document.visibilityState === 'visible');
+      } finally {
+        wakeLockPending = false;
+      }
+      // The transfer may have ended while the request was pending.
+      if (!keepsAwake()) updateWakeLock();
     } else if (!busy && wakeLock) {
-      wakeLock.release().catch(() => {});
+      const lock = wakeLock;
       wakeLock = null;
+      lock.release().catch(() => {});
     }
   }
 
@@ -1209,7 +1255,7 @@
   window.addEventListener('online', () => { if (!ws) connect(); });
   window.addEventListener('offline', () => setStatus('offline'));
   window.addEventListener('beforeunload', (e) => {
-    if (items.some((it) => it.status === 'sending' || it.status === 'receiving')) {
+    if (keepsAwake()) {
       e.preventDefault();
       e.returnValue = '';
     }
