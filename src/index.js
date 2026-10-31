@@ -12,8 +12,11 @@ const MAX_MESSAGE = 64 * 1024;
 const MAX_SOCKETS = 1000; // whole lobby
 const MAX_SOCKETS_PER_IP = 10; // a household or office shares one address
 const MAX_CONNECTS_PER_IP_PER_MIN = 30; // reconnect churn
-const BUCKET_SIZE = 60; // messages in a burst (a WebRTC setup sends ~20)
-const BUCKET_REFILL_PER_SEC = 5;
+// One WebRTC connection sends 30-40 signaling messages in a few seconds
+// (more on a phone with Wi-Fi + cellular), and a person may connect to
+// several people at once, so leave plenty of room.
+const BUCKET_SIZE = 300;
+const BUCKET_REFILL_PER_SEC = 20;
 const SHUFFLE_EVERY_MS = 2000;
 
 // Other sites must not reach the lobby. Scripts can still fake Origin, which
