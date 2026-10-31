@@ -1,5 +1,5 @@
 // Network first (so new deploys show up right away), cache as offline fallback.
-const CACHE = 'peershare-v4';
+const CACHE = 'peershare-v5';
 const SHARE_CACHE = 'peershare-share';
 const SHELL = [
   '/',
