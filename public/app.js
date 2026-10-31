@@ -569,6 +569,12 @@
 
   // ---------- Receiving ----------
 
+  // The sender picks the file type. A blob URL runs in this app's origin, so a
+  // file the browser might render (HTML, SVG, XML…) is kept as a plain download.
+  const SAFE_IMAGE = /^image\/(png|jpeg|gif|webp|avif|bmp|heic|heif)$/;
+  const SAFE_TYPE = /^(video|audio)\/[\w.+-]+$|^application\/pdf$|^text\/plain$/;
+  const safeType = (type) => (SAFE_IMAGE.test(type) || SAFE_TYPE.test(type) ? type : 'application/octet-stream');
+
   const safeName = (name) => String(name || '').replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 255) || 'file';
   const findItem = (conn, xid) => items.find((it) => it.xid === xid && it.peer.id === conn.id);
 
@@ -680,9 +686,9 @@
       try { conn.send({ t: 'cancel', id: it.xid }); } catch {}
       return finishItem(it, 'failed', `${f.name} arrived incomplete`);
     }
-    f.blob = new Blob([...cur.parts, ...cur.chunks], { type: f.type || 'application/octet-stream' });
+    f.blob = new Blob([...cur.parts, ...cur.chunks], { type: safeType(f.type) });
     f.url = URL.createObjectURL(f.blob);
-    if (f.type.startsWith('image/')) f.thumb = f.url;
+    if (SAFE_IMAGE.test(f.blob.type)) f.thumb = f.url;
     if (cur.index === it.files.length - 1) {
       conn.send({ t: 'done', id: it.xid });
       finishItem(it, 'received');
