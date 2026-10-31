@@ -22,7 +22,7 @@ INSTALL=1 mac/build.sh       # also copies it to /Applications
 mac/make-icon.sh             # re-renders Resources/AppIcon.icns (needs Google Chrome)
 ```
 
-Debug builds (`DEBUG=1`) accept `PEERSHARE_URL` (e.g. the dev server), `PEERSHARE_INJECT` (a script run after each page load) and `PEERSHARE_LOG` (lines the page posts with `{t: 'log'}`; `snapshot:<path>` saves a PNG). Pushing a tag like `mac-1.0.0` publishes a DMG on GitHub. It's ad-hoc signed, not notarized.
+Debug builds (`DEBUG=1`) accept `PEERSHARE_URL` (e.g. the dev server), `PEERSHARE_INJECT` (a script run after each page load) and `PEERSHARE_LOG` (lines the page posts with `{t: 'log'}`; `snapshot:<path>` saves a PNG). The last two can also be set with `defaults write link.usame.peershare …`, for when the share menu launches the app. Pushing a tag like `mac-1.0.0` publishes a DMG on GitHub. It's ad-hoc signed, not notarized.
 
 ## How it works
 

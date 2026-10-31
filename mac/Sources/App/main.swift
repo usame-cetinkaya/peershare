@@ -162,9 +162,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
   }
 
   func deliver(_ share: [String: Any]) {
-    window.makeKeyAndOrderFront(nil)
+    // A share that launches the app arrives before it has finished launching
+    // (no window yet). It waits in `pending` until the page says it's ready.
+    window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
-    guard pageReady else { pending = share; return }
+    guard pageReady else {
+      if let earlier = pending {
+        let files = (earlier["files"] as? [[String: Any]] ?? []) + (share["files"] as? [[String: Any]] ?? [])
+        let text = [earlier["text"], share["text"]].compactMap { $0 as? String }.filter { !$0.isEmpty }.joined(separator: "\n")
+        pending = ["files": files, "text": text]
+      } else {
+        pending = share
+      }
+      return
+    }
     webView.callAsyncJavaScript(
       "window.peershareMac && window.peershareMac.share(s)", arguments: ["s": share], in: nil, in: .page)
   }
@@ -251,9 +262,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
   #if DEBUG
   // Test hooks: PEERSHARE_INJECT is a script run after each page load; the
   // page writes lines to PEERSHARE_LOG with {t:'log', text}, and logging
-  // "snapshot:<path>" saves a PNG of the page.
+  // "snapshot:<path>" saves a PNG of the page. Set them in the environment,
+  // or with `defaults write link.usame.peershare PEERSHARE_LOG <path>` for
+  // launches the shell doesn't start (from the share menu).
+  func debugSetting(_ key: String) -> String? {
+    ProcessInfo.processInfo.environment[key] ?? UserDefaults.standard.string(forKey: key)
+  }
+
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    guard let path = ProcessInfo.processInfo.environment["PEERSHARE_INJECT"],
+    guard let path = debugSetting("PEERSHARE_INJECT"),
           let script = try? String(contentsOfFile: path, encoding: .utf8) else { return }
     webView.evaluateJavaScript(script)
   }
@@ -266,7 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         try? png.write(to: URL(fileURLWithPath: path))
       }
     }
-    guard let path = ProcessInfo.processInfo.environment["PEERSHARE_LOG"] else { return }
+    guard let path = debugSetting("PEERSHARE_LOG") else { return }
     let line = Data("\(Date().timeIntervalSince1970) \(text)\n".utf8)
     if let h = FileHandle(forWritingAtPath: path) {
       h.seekToEndOfFile()
