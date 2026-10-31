@@ -293,7 +293,7 @@ dialog.sheet[open] { animation: rise 0.2s ease-out; }
   background: var(--surface-2);
   font-size: 14px;
 }
-.picked .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picked .fname { flex: 1; }
 .picked .fsize { color: var(--muted); flex: none; }
 .picked .remove { width: 30px; height: 30px; border-radius: 8px; }
 .picked .remove svg { width: 16px; height: 16px; }
@@ -369,7 +369,7 @@ textarea:focus { border-color: var(--accent); }
 .file .ficon { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: var(--bg); color: var(--muted); flex: none; }
 .file .ficon svg { width: 20px; height: 20px; }
 .file .fmeta { flex: 1; min-width: 0; }
-.file .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.file .fname { font-weight: 600; }
 .file .fsize { color: var(--muted); font-size: 13px; }
 .file .actions { display: flex; gap: 4px; flex: none; }
 .file .actions .icon-btn, .item-actions .icon-btn { width: 38px; height: 38px; color: var(--accent); }
@@ -477,3 +477,8 @@ textarea:focus { border-color: var(--accent); }
 }
 .install-btn[hidden] { display: none; }
 .install-btn svg { width: 19px; height: 19px; stroke-width: 2.2; }
+
+/* File names: the base is cut with … and the extension always shows. */
+.fname { display: flex; min-width: 0; white-space: nowrap; }
+.fname-base { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fname-ext { flex: none; }

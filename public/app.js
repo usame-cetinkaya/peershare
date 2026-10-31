@@ -87,6 +87,15 @@
     return el;
   }
 
+  // A file name that keeps its extension in view when it has to be cut short:
+  // "Avatar Seven Havens 1.Sez….mp4".
+  function fileName(tag, name) {
+    const m = /^(.+)(\.[^.\s]{1,10})$/.exec(name);
+    return h(tag, { class: 'fname', title: name },
+      h('span', { class: 'fname-base' }, m ? m[1] : name),
+      m && h('span', { class: 'fname-ext' }, m[2]));
+  }
+
   const ICONS = {
     save: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
     share: '<path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/>',
@@ -766,7 +775,7 @@
     $('incoming-lead').textContent = `wants to send you ${n === 1 ? 'a file' : `${n} files`} (${formatBytes(it.total)}).`;
     $('incoming-code').textContent = it.conn.code ? codeText(it.conn.code) : '';
     const shown = it.files.slice(0, 5).map((f) =>
-      h('li', {}, h('span', { class: 'fname' }, f.name), h('span', { class: 'fsize' }, formatBytes(f.size))));
+      h('li', {}, fileName('span', f.name), h('span', { class: 'fsize' }, formatBytes(f.size))));
     if (n > 5) shown.push(h('li', { class: 'muted' }, `and ${n - 5} more`));
     $('incoming-files').replaceChildren(...shown);
     if (!incomingDialog.open) incomingDialog.showModal();
@@ -931,7 +940,7 @@
     if (it.dir === 'in' && it.status === 'receiving' && !f.url && f.received) size = `${formatBytes(f.received)} of ${size}`;
     return h('li', { class: 'file' },
       preview,
-      h('div', { class: 'fmeta' }, h('div', { class: 'fname', title: f.name }, f.name), h('div', { class: 'fsize' }, size)),
+      h('div', { class: 'fmeta' }, fileName('div', f.name), h('div', { class: 'fsize' }, size)),
       actions);
   }
 
@@ -1068,7 +1077,7 @@
   function renderPicked() {
     $('picked').replaceChildren(...picked.map((f, i) =>
       h('li', {},
-        h('span', { class: 'fname', title: f.name }, f.name),
+        fileName('span', f.name),
         h('span', { class: 'fsize' }, formatBytes(f.size)),
         h('button', {
           type: 'button', class: 'icon-btn remove', 'aria-label': `Remove ${f.name}`,
