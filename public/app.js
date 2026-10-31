@@ -572,6 +572,21 @@
   const safeName = (name) => String(name || '').replace(/[\\/\u0000-\u001f]/g, '_').slice(0, 255) || 'file';
   const findItem = (conn, xid) => items.find((it) => it.xid === xid && it.peer.id === conn.id);
 
+  // Spam limits for what others send you: per person per minute, and how many
+  // Accept dialogs may queue up.
+  const MAX_INCOMING_PER_MIN = 10;
+  const MAX_ASK_QUEUE = 10;
+  const incomingTimes = new Map(); // peer id -> recent arrival times
+
+  function allowIncoming(peerId) {
+    const now = Date.now();
+    const recent = (incomingTimes.get(peerId) || []).filter((t) => now - t < 60000);
+    if (recent.length >= MAX_INCOMING_PER_MIN) return false;
+    recent.push(now);
+    incomingTimes.set(peerId, recent);
+    return true;
+  }
+
   function onChannelMessage(conn, data) {
     if (typeof data !== 'string') return onChunk(conn, data);
     let msg;
@@ -581,6 +596,7 @@
     switch (msg.t) {
       case 'text': {
         if (typeof msg.text !== 'string' || typeof msg.id !== 'string') return;
+        if (!allowIncoming(conn.id)) return;
         newItem({ kind: 'text', dir: 'in', xid: msg.id.slice(0, 40), peer: peerFor(conn.id), conn, text: msg.text.slice(0, MAX_TEXT), status: 'received' });
         conn.send({ t: 'got', id: msg.id });
         notify();
@@ -592,6 +608,11 @@
         break;
       case 'offer': {
         if (typeof msg.id !== 'string' || !Array.isArray(msg.files) || !msg.files.length) return;
+        const pending = items.some((x) => x.status === 'asking' && x.peer.id === conn.id);
+        if (pending || askQueue.length >= MAX_ASK_QUEUE || !allowIncoming(conn.id)) {
+          conn.send({ t: 'answer', id: msg.id, accept: false });
+          return;
+        }
         const files = msg.files.slice(0, 2000).map((f) => ({
           name: safeName(f && f.name),
           size: Math.max(0, Math.floor(Number(f && f.size) || 0)),
