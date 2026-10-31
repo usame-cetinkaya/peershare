@@ -1,5 +1,5 @@
 // Network first (so new deploys show up right away), cache as offline fallback.
-const CACHE = 'peershare-v1';
+const CACHE = 'peershare-v2';
 const SHARE_CACHE = 'peershare-share';
 const SHELL = [
   '/',
@@ -27,6 +27,12 @@ self.addEventListener('activate', (event) => {
 
 // Android share target: park the shared files, then open the app to pick a person.
 async function receiveShare(request) {
+  // Any website can POST a form here. A real share from another app has no
+  // referrer, so drop posts that come from someone else's page.
+  const home = new URL('/', self.location).href;
+  if (request.referrer && request.referrer !== 'about:client' && new URL(request.referrer).origin !== self.location.origin) {
+    return Response.redirect(home, 303);
+  }
   const form = await request.formData();
   const cache = await caches.open(SHARE_CACHE);
   for (const key of await cache.keys()) await cache.delete(key);

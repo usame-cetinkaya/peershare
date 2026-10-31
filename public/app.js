@@ -1094,8 +1094,11 @@
 
   function setShare(share) {
     pendingShare = share;
-    const n = share.files.length;
-    const what = n ? (n === 1 ? '1 file' : `${n} files`) : 'this';
+    // Name what was shared, so nothing unexpected gets sent along.
+    const names = share.files.map((f) => f.name);
+    let what = names.slice(0, 2).join(', ');
+    if (names.length > 2) what += ` and ${names.length - 2} more`;
+    if (!names.length) what = share.text.length > 40 ? `${share.text.slice(0, 40)}…` : share.text;
     $('share-banner-text').textContent = `Tap someone to send ${what}`;
     $('share-banner').hidden = false;
   }
