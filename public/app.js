@@ -916,7 +916,7 @@
     if (it.route && it.kind === 'files') notes.push(it.route === 'relay' ? 'Relayed through Cloudflare (still encrypted)' : 'Direct connection');
 
     const actions = h('div', { class: 'item-actions' });
-    if (notes.length) actions.append(h('span', { class: 'muted', style: 'margin-right:auto;font-size:13px' }, notes.join(' · ')));
+    if (notes.length) actions.append(h('span', { class: 'muted item-note' }, notes.join(' · ')));
     if (it.status === 'asking') {
       actions.append(
         h('button', { type: 'button', class: 'secondary', onclick: () => { answerItem(it, false); if (asking === it) closeAsk(); } }, 'Decline'),
@@ -926,7 +926,7 @@
     } else if (it.kind === 'text' && it.dir === 'in') {
       const url = singleUrl(it.text);
       actions.append(h('button', { type: 'button', class: 'secondary', onclick: () => copyText(it.text) }, icon('copy'), 'Copy'));
-      if (url) actions.append(h('a', { class: 'primary', href: url, target: '_blank', rel: 'noopener noreferrer', style: 'text-decoration:none' }, icon('open'), 'Open'));
+      if (url) actions.append(h('a', { class: 'primary', href: url, target: '_blank', rel: 'noopener noreferrer' }, icon('open'), 'Open'));
     } else if (it.kind === 'files' && it.status === 'received' && it.files.length > 1) {
       if (canShareFiles(it.files)) actions.append(h('button', { type: 'button', class: 'secondary', onclick: () => shareFiles(it.files) }, icon('share'), 'Share all'));
       actions.append(h('button', { type: 'button', class: 'primary', onclick: () => saveAll(it) }, icon('save'), 'Save all'));
