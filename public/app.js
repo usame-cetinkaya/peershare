@@ -542,7 +542,10 @@
     setItemStatus(it, 'waiting');
     const accepted = await answer;
     if (!isActive(it)) return;
-    if (!accepted) return finishItem(it, 'declined');
+    if (!accepted) {
+      if (it.busy) return finishItem(it, 'failed', `${peer.name} has too many requests waiting. Try again in a minute.`);
+      return finishItem(it, 'declined');
+    }
 
     const run = conn.sendLock.then(() => streamFiles(conn, it));
     conn.sendLock = run.catch(() => {});
@@ -597,7 +600,8 @@
 
   // Spam limits for what others send you: per person per minute, and how many
   // Accept dialogs may queue up.
-  const MAX_INCOMING_PER_MIN = 10;
+  const MAX_INCOMING_PER_MIN = 30;
+  const MAX_PENDING_PER_PEER = 3;
   const MAX_ASK_QUEUE = 10;
   const incomingTimes = new Map(); // peer id -> recent arrival times
 
@@ -619,7 +623,10 @@
     switch (msg.t) {
       case 'text': {
         if (typeof msg.text !== 'string' || typeof msg.id !== 'string') return;
-        if (!allowIncoming(conn.id)) return;
+        if (!allowIncoming(conn.id)) {
+          conn.send({ t: 'busy', id: msg.id });
+          return;
+        }
         newItem({ kind: 'text', dir: 'in', xid: msg.id.slice(0, 40), peer: peerFor(conn.id), conn, text: msg.text.slice(0, MAX_TEXT), status: 'received' });
         conn.send({ t: 'got', id: msg.id });
         notify();
@@ -631,9 +638,9 @@
         break;
       case 'offer': {
         if (typeof msg.id !== 'string' || !Array.isArray(msg.files) || !msg.files.length) return;
-        const pending = items.some((x) => x.status === 'asking' && x.peer.id === conn.id);
-        if (pending || askQueue.length >= MAX_ASK_QUEUE || !allowIncoming(conn.id)) {
-          conn.send({ t: 'answer', id: msg.id, accept: false });
+        const pending = items.filter((x) => x.status === 'asking' && x.peer.id === conn.id).length;
+        if (pending >= MAX_PENDING_PER_PEER || askQueue.length >= MAX_ASK_QUEUE || !allowIncoming(conn.id)) {
+          conn.send({ t: 'answer', id: msg.id, accept: false, busy: true });
           return;
         }
         const files = msg.files.slice(0, 2000).map((f) => ({
@@ -658,7 +665,13 @@
         break;
       }
       case 'answer':
-        if (it && it.resolveAnswer) it.resolveAnswer(msg.accept === true);
+        if (it && it.resolveAnswer) {
+          it.busy = msg.busy === true;
+          it.resolveAnswer(msg.accept === true);
+        }
+        break;
+      case 'busy':
+        if (it && isActive(it)) finishItem(it, 'failed', `${it.peer.name} is getting too many messages. Try again in a minute.`);
         break;
       case 'begin':
         if (it && it.status === 'receiving' && it.files[msg.index]) {
