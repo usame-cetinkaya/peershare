@@ -3,6 +3,8 @@
 	"name": "peershare",
 	"main": "src/index.js",
 	"compatibility_date": "2026-10-23",
+	"routes": [{ "pattern": "share.usame.link", "custom_domain": true }],
+	"workers_dev": true,
 	"assets": {
 		"directory": "./public",
 		"binding": "ASSETS",
